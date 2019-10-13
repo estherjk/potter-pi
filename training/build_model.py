@@ -34,8 +34,8 @@ TRAIN_DATASET_PATH = os.path.join(DATASET_PATH, 'train')
 TEST_DATASET_PATH = os.path.join(DATASET_PATH, 'test')
 
 # TODO: Instead of hard-coding, get them from the datsets themselves. Is it possible w/ the ImageDataGenerator?
-NUM_TOTAL_TRAIN = 72
-NUM_CLASSES = 3
+NUM_TOTAL_TRAIN = 96
+NUM_CLASSES = 4
 
 BATCH_SIZE = 8
 NUM_EPOCHS = 5
@@ -72,7 +72,7 @@ test_data_gen = data_generator.flow_from_directory(
 model = keras.models.Sequential([
     keras.layers.Flatten(input_shape=(IMG_HEIGHT, IMG_WIDTH, 1)),
     keras.layers.Dense(4, activation='relu'),
-    keras.layers.Dropout(0.5),
+    keras.layers.Dropout(0.2),
     keras.layers.Dense(NUM_CLASSES, activation='softmax')
 ])
 
@@ -88,7 +88,7 @@ history = model.fit_generator(
     epochs=NUM_EPOCHS
 )
 
-model.save('spell_detector_model_new.h5') 
+model.save('../models/spell_detector_model_new.h5') 
 
 # ## Make predictions
 

@@ -30,7 +30,7 @@ def show_test_batch(image_batch, label_batch, predictions):
 
     grid_size = math.ceil(math.sqrt(len(predictions)))
 
-    plt.figure(figsize=(5,5))
+    plt.figure(figsize=(10,10))
     for n in range(len(predictions)):
         ax = plt.subplot(grid_size, grid_size, n+1)
 
