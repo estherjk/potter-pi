@@ -25,7 +25,7 @@ from tensorflow.keras.preprocessing.image import ImageDataGenerator
 
 import os
 
-from utils import show_batch, show_test_batch
+from utils import save_class_labels, show_batch, show_test_batch
 
 # ## Dataset parameters
 
@@ -88,7 +88,8 @@ history = model.fit_generator(
     epochs=NUM_EPOCHS
 )
 
-model.save('../models/spell_detector_model_new.h5') 
+model.save('../models/spell_detector_model_new.h5')
+save_class_labels(train_data_gen.class_indices, '../models/spell_detector_classes.json')
 
 # ## Make predictions
 

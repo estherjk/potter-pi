@@ -16,6 +16,9 @@ Q - Quit
 
 import cv2 as cv
 import numpy as np
+import tensorflow as tf
+
+import json
 import os
 import sys
 import time
@@ -29,7 +32,7 @@ class SpellDetector:
         # Background subtraction properties
         self.background_subtractor = cv.createBackgroundSubtractorMOG2(history=100, varThreshold=50, detectShadows=False)
 
-        # Wand detection & tracking properties
+        # Detection & tracking properties
         self.update_interval = 5
         self.feature_params = dict(
             maxCorners = 5,
@@ -39,16 +42,23 @@ class SpellDetector:
             winSize  = (25, 25),
             maxLevel = 7,
             criteria = (cv.TERM_CRITERIA_EPS | cv.TERM_CRITERIA_COUNT, 10, 0.03))
+
+        # Wand properties
         self.wand_tracks = []
         self.wand_pattern = None
+        self.spell = ''
+        self.max_frames_since_no_new_points = 30
+        self.frames_since_no_new_points = 0
 
     def run(self, is_remove_background_enabled=False):
         """
         Run Spell Detector!
         """
 
-        cap = cv.VideoCapture(self.video_src)
-        
+        self.load_model('../models/spell_detector_model.h5')
+        self.load_classes('../models/spell_detector_classes.json')
+
+        cap = cv.VideoCapture(self.video_src)        
         while(True):
             ret, frame = cap.read()
             if frame is None:
@@ -80,7 +90,10 @@ class SpellDetector:
             elif key == ord('s'):
                 if self.wand_pattern is not None:
                     self.save_wand_pattern(self.wand_pattern)
-                    
+            # Press 'P' to predict spell
+            # TODO: Figure out best time to make a prediction, e.g. after the wand has stopped moving
+            elif key == ord('p'): 
+                self.predict_spell(self.wand_pattern)
 
         cap.release()
         cv.destroyAllWindows()
@@ -121,28 +134,36 @@ class SpellDetector:
         Track the wand tip.
         """
         
-        # Start tracking when there is a previous frame and there are points to track
-        if self.points is None or self.prev_frame is None:
-            # Clear any old wand tracks
-            self.wand_tracks.clear()
+        if self.prev_frame is None:
             return
 
-        # Calculate optical flow
-        new_points, status, err = cv.calcOpticalFlowPyrLK(self.prev_frame, frame, self.points, None, **self.lk_params)
-
-        # Select good points
-        if new_points is not None:
-            good_new = new_points[status==1]
-
-            # Update points for optical flow calculation
-            self.points = good_new.copy().reshape(-1, 1, 2)
-
-            # Add points to tracks array
-            for p in self.points:
-                x, y = p.ravel()
-                self.wand_tracks.append([x, y])
-
         vis = frame.copy()
+
+        if self.points is None:
+            if len(self.wand_tracks) > 0:
+                self.frames_since_no_new_points += 1
+
+                if self.frames_since_no_new_points > self.max_frames_since_no_new_points:
+                    self.spell = self.predict_spell(self.wand_pattern)
+                    
+                    # Reset
+                    self.wand_tracks.clear()
+                    self.frames_since_no_new_points = 0
+        else:
+            # Calculate optical flow
+            new_points, status, err = cv.calcOpticalFlowPyrLK(self.prev_frame, frame, self.points, None, **self.lk_params)
+
+            # Select good points
+            if new_points is not None:
+                good_new = new_points[status==1]
+
+                # Update points for optical flow calculation
+                self.points = good_new.copy().reshape(-1, 1, 2)
+
+                # Add points to tracks array
+                for p in self.points:
+                    x, y = p.ravel()
+                    self.wand_tracks.append([x, y])
 
         if len(self.wand_tracks) > 0:
             x0, y0 = self.wand_tracks[0]
@@ -152,10 +173,10 @@ class SpellDetector:
 
                 x0, y0 = track
 
+            self.spell = ''
             self.grab_wand_pattern(vis)
-        else:
-            vis = np.zeros_like(frame)
         
+        cv.putText(vis, 'spell: %s' % self.spell, (10,20), cv.FONT_HERSHEY_PLAIN, 1.0, (255,255,255))
         cv.imshow('Tracked Points', vis)
 
     def grab_wand_pattern(self, frame):
@@ -188,6 +209,46 @@ class SpellDetector:
 
         filename = "pattern_" + str(time.time()) + ".png"
         cv.imwrite(os.path.join(path, filename), frame)
+
+
+    def load_model(self, path):
+        """
+        Load TensorFlow model.
+        """
+
+        self.model = tf.keras.models.load_model(path)
+        self.model.summary()
+
+    def load_classes(self, filename):
+        """
+        Load class labels & indices from a JSON file.
+        """
+        
+        with open(filename) as json_data:
+            classes = json.load(json_data)
+
+            # Convert keys to ints
+            classes = {int(key): value for key, value in classes.items()}
+            self.model_classes = classes
+
+            print(self.model_classes)
+
+
+    def predict_spell(self, wand_pattern):
+        """
+        Predict the spell!
+        """
+
+        # Reshape wand pattern frame to be (n_batch=1, height, widgth, n_channels=1)
+        wand_pattern = wand_pattern[np.newaxis, :, :, np.newaxis]
+        
+        predictions = self.model.predict(wand_pattern)
+        predicted_label_index = np.argmax(predictions[0])
+        predicted_spell = self.model_classes[predicted_label_index]
+        print(predicted_spell)
+        
+        return predicted_spell
+
 
 def main():
     try:

@@ -1,6 +1,19 @@
+import json
 import math
 import matplotlib.pyplot as plt
 import numpy as np
+
+def save_class_labels(class_indices, filename):
+    """
+    Save the class indices & labels as a JSON file.
+    """
+
+    # Reverse key-value pairs to be {index: label}
+    class_labels = {value: key for key, value in class_indices.items()}
+
+    with open(filename, 'w') as fp:
+        json.dump(class_labels, fp, indent=4)
+
 
 def show_batch(image_batch, label_batch):
     """

@@ -41,5 +41,6 @@ test_data_gen = data_generator.flow_from_directory(
 )
 
 test_image_batch, test_label_batch = next(test_data_gen)
+
 predictions = model.predict(test_image_batch)
 show_test_batch(test_image_batch, test_label_batch, predictions)
