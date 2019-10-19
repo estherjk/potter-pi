@@ -1,4 +1,13 @@
+"""
+Main file for detecting, classifying, and casting spells.
+
+Usage
+-----
+python main.py [<video_source>]
+"""
+
 import os
+import sys
 
 from dotenv import load_dotenv
 
@@ -15,7 +24,10 @@ hass_client = HassClient(os.getenv('HASS_BASE_URL'), os.getenv('HASS_API_TOKEN')
 
 # Spell Detection
 
-video_src = 0
+try:
+    video_src = sys.argv[1]
+except:
+    video_src = 0
 
 spell_classifier = SpellClassifier(
     'models/spell_detector_model.h5',
