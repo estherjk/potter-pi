@@ -1,13 +1,4 @@
 """
-Spell Detector
-====================
-
-Detect spells from an IR-illuminated Harry Potter wand.
-
-Usage
------
-spelldetector.py [<video_source>]
-
 Keys
 ----
 S - Save wand pattern as an image (for data collection)
@@ -16,16 +7,22 @@ Q - Quit
 
 import cv2 as cv
 import numpy as np
-import tensorflow as tf
 
-import json
 import os
 import sys
 import time
 
 class SpellDetector:
-    def __init__(self, video_src):
+    """
+    From the video stream, track the wand tip, determine what spell has been cast, and make magic!
+    """
+
+    def __init__(self, video_src, spell_classifier, spellcaster):
         self.video_src = video_src
+        self.spell_classifier = spell_classifier
+        self.spellcaster = spellcaster
+
+        # Frame properties
         self.frame_index = 0
         self.prev_frame = None
 
@@ -54,9 +51,6 @@ class SpellDetector:
         """
         Run Spell Detector!
         """
-
-        self.load_model('../models/spell_detector_model.h5')
-        self.load_classes('../models/spell_detector_classes.json')
 
         cap = cv.VideoCapture(self.video_src)        
         while(True):
@@ -90,10 +84,6 @@ class SpellDetector:
             elif key == ord('s'):
                 if self.wand_pattern is not None:
                     self.save_wand_pattern(self.wand_pattern)
-            # Press 'P' to predict spell
-            # TODO: Figure out best time to make a prediction, e.g. after the wand has stopped moving
-            elif key == ord('p'): 
-                self.predict_spell(self.wand_pattern)
 
         cap.release()
         cv.destroyAllWindows()
@@ -143,8 +133,10 @@ class SpellDetector:
             if len(self.wand_tracks) > 0:
                 self.frames_since_no_new_points += 1
 
+                # Predict and cast spell when no new frames have been added after specified interval
                 if self.frames_since_no_new_points > self.max_frames_since_no_new_points:
                     self.spell = self.predict_spell(self.wand_pattern)
+                    self.spellcaster.cast_spell(self.spell)
                     
                     # Reset
                     self.wand_tracks.clear()
@@ -202,36 +194,13 @@ class SpellDetector:
 
             cv.imshow('Wand Pattern', cropped_frame)
 
-    def save_wand_pattern(self, frame, path='../data'):
+    def save_wand_pattern(self, frame, path='./data/'):
         """
         Save the wand pattern as an image. Used for data collection & model training.
         """
 
         filename = "pattern_" + str(time.time()) + ".png"
         cv.imwrite(os.path.join(path, filename), frame)
-
-
-    def load_model(self, path):
-        """
-        Load TensorFlow model.
-        """
-
-        self.model = tf.keras.models.load_model(path)
-        self.model.summary()
-
-    def load_classes(self, filename):
-        """
-        Load class labels & indices from a JSON file.
-        """
-        
-        with open(filename) as json_data:
-            classes = json.load(json_data)
-
-            # Convert keys to ints
-            classes = {int(key): value for key, value in classes.items()}
-            self.model_classes = classes
-
-            print(self.model_classes)
 
 
     def predict_spell(self, wand_pattern):
@@ -242,24 +211,9 @@ class SpellDetector:
         # Reshape wand pattern frame to be (n_batch=1, height, widgth, n_channels=1)
         wand_pattern = wand_pattern[np.newaxis, :, :, np.newaxis]
         
-        predictions = self.model.predict(wand_pattern)
+        predictions = self.spell_classifier.model.predict(wand_pattern)
         predicted_label_index = np.argmax(predictions[0])
-        predicted_spell = self.model_classes[predicted_label_index]
+        predicted_spell = self.spell_classifier.classes[predicted_label_index]
         print(predicted_spell)
         
         return predicted_spell
-
-
-def main():
-    try:
-        video_src = sys.argv[1]
-    except:
-        video_src = 0
-
-    SpellDetector(video_src).run(is_remove_background_enabled=True)
-    print('Done')
-
-
-if __name__ == "__main__":
-    print(__doc__)
-    main()
